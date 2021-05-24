@@ -1,21 +1,11 @@
-FROM golang:1.16-alpine AS build-env
-
-ARG tfsec_version=0.0.0
-
-COPY ./ /src
-WORKDIR /src
-ENV CGO_ENABLED=0
-RUN go build \
-  -a \
-  -ldflags "-X github.com/tfsec/tfsec/version.Version=${tfsec_version} -s -w -extldflags '-static'" \
-  -mod=vendor \
-  ./cmd/tfsec
+FROM alpine as nobody
 
 FROM scratch
-# use a non-privileged user
+# use a non-privileged user but need to add it in
+COPY --from=nobody /etc/group /etc/passwd /etc/
 USER nobody
 # work somewhere where we can write
-COPY --from=build-env /src/tfsec /usr/bin/tfsec
+COPY tfsec /usr/bin/tfsec
 # set the default entrypoint -- when this container is run, use this command
 ENTRYPOINT [ "tfsec" ]
 # as we specified an entrypoint, this is appended as an argument (i.e., `tfsec --help`)

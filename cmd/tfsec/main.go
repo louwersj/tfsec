@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/tfsec/tfsec/internal/app/tfsec/config"
+	"github.com/tfsec/tfsec/internal/app/tfsec/updater"
 
 	"github.com/tfsec/tfsec/internal/app/tfsec/custom"
 
@@ -26,6 +27,7 @@ import (
 )
 
 var showVersion = false
+var runUpdate = false
 var disableColours = false
 var format string
 var softFail = false
@@ -41,6 +43,7 @@ var excludeDownloaded = false
 var detailedExitCode = false
 var includePassed = false
 var includeIgnored = false
+var ignoreWarnings = false
 var allDirs = false
 var runStatistics bool
 
@@ -48,6 +51,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&disableColours, "no-colour", disableColours, "Disable coloured output")
 	rootCmd.Flags().BoolVar(&disableColours, "no-color", disableColours, "Disable colored output (American style!)")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", showVersion, "Show version information and exit")
+	rootCmd.Flags().BoolVar(&runUpdate, "update", runUpdate, "Update to latest version")
 	rootCmd.Flags().StringVarP(&format, "format", "f", format, "Select output format: default, json, csv, checkstyle, junit, sarif")
 	rootCmd.Flags().StringVarP(&excludedChecks, "exclude", "e", excludedChecks, "Provide checks via , without space to exclude from run.")
 	rootCmd.Flags().StringVar(&filterResults, "filter-results", filterResults, "Filter results to return specific checks only (supports comma-delimited input).")
@@ -64,6 +68,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&includeIgnored, "include-ignored", includeIgnored, "Include ignored checks in the result output")
 	rootCmd.Flags().BoolVar(&allDirs, "force-all-dirs", allDirs, "Don't search for tf files, include everything below provided directory.")
 	rootCmd.Flags().BoolVar(&runStatistics, "run-statistics", runStatistics, "View statistics table of current findings.")
+	rootCmd.Flags().BoolVar(&ignoreWarnings, "ignore-warnings", ignoreWarnings, "Don't show warnings in the output.")
 }
 
 func main() {
@@ -87,6 +92,13 @@ var rootCmd = &cobra.Command{
 
 		if showVersion {
 			fmt.Println(version.Version)
+			os.Exit(0)
+		}
+
+		if runUpdate {
+			if err := updater.Update(); err != nil {
+				tml.Printf("Not updating, %s\n", err.Error())
+			}
 			os.Exit(0)
 		}
 	},
@@ -182,7 +194,7 @@ var rootCmd = &cobra.Command{
 		debug.Log("Starting scanner...")
 		results := scanner.New().Scan(blocks, mergeWithoutDuplicates(excludedChecksList, tfsecConfig.ExcludedChecks), getScannerOptions()...)
 		results = updateResultSeverity(results)
-		results = removeDuplicatesAndUnwanted(results)
+		results = RemoveDuplicatesAndUnwanted(results, ignoreWarnings, excludeDownloaded)
 		if len(filterResultsList) > 0 {
 			var filteredResult []scanner.Result
 			for _, result := range results {
@@ -254,7 +266,7 @@ func getDetailedExitCode(results []scanner.Result) int {
 	return 1
 }
 
-func removeDuplicatesAndUnwanted(results []scanner.Result) []scanner.Result {
+func RemoveDuplicatesAndUnwanted(results []scanner.Result, ignoreWarnings bool, excludeDownloaded bool) []scanner.Result {
 	reduction := map[scanner.Result]bool{}
 
 	for _, result := range results {
@@ -264,6 +276,10 @@ func removeDuplicatesAndUnwanted(results []scanner.Result) []scanner.Result {
 	var returnVal []scanner.Result
 	for r, _ := range reduction {
 		if excludeDownloaded && strings.Contains(r.Range.Filename, "/.terraform") {
+			continue
+		}
+
+		if ignoreWarnings && r.Severity == scanner.SeverityWarning {
 			continue
 		}
 		returnVal = append(returnVal, r)

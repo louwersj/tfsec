@@ -8,7 +8,7 @@ builds:
     main: ./cmd/tfsec
     binary: tfsec
     ldflags:
-    - "-X github.com/tfsec/tfsec/version.Version=${TAG} -s -w -extldflags '-fno-PIC -static'"
+    - "-X github.com/tfsec/tfsec/version.Version={{.Version}} -s -w -extldflags '-fno-PIC -static'"
     env:
       - CGO_ENABLED=0
       - GOFLAGS=-mod=vendor
@@ -49,6 +49,7 @@ changelog:
 
 signs:
   - artifacts: all
+    signature: "${artifact}.D66B222A3EA4C25D5D1A097FC34ACEFB46EC39CE.sig"
 
 archives:
   -
@@ -59,3 +60,41 @@ release:
   github:
     owner: tfsec
     name: tfsec
+
+dockers:
+  - 
+    goos: linux
+    goarch: amd64
+    ids:
+    - tfsec
+
+    dockerfile: Dockerfile
+    image_templates:
+    - "tfsec/tfsec:latest"
+    - "tfsec/tfsec:{{ .Tag }}"
+    - "tfsec/tfsec:v{{ .Major }}.{{ .Minor }}"
+    - "tfsec/tfsec-alpine:latest"
+    - "tfsec/tfsec-alpine:{{ .Tag }}"
+    - "tfsec/tfsec-alpine:v{{ .Major }}.{{ .Minor }}"
+  - 
+    goos: linux
+    goarch: amd64
+    ids:
+    - tfsec
+
+    dockerfile: Dockerfile.scratch
+    image_templates:
+    - "tfsec/tfsec-scratch:latest"
+    - "tfsec/tfsec-scratch:{{ .Tag }}"
+    - "tfsec/tfsec-scratch:v{{ .Major }}.{{ .Minor }}"
+  - 
+    goos: linux
+    goarch: amd64
+    ids:
+    - tfsec
+
+    dockerfile: Dockerfile.ci
+    image_templates:
+    - "tfsec/tfsec-ci:latest"
+    - "tfsec/tfsec-ci:{{ .Tag }}"
+    - "tfsec/tfsec-ci:v{{ .Major }}.{{ .Minor }}"
